@@ -1,4 +1,4 @@
-# balanced_heuristic.py
+# more_balanced_heuristic.py
 import numpy as np
 import random
 
@@ -118,17 +118,17 @@ class SungkaHeuristic:
             
             # Check what opponent could achieve
             if ((opponent == 0 and current_hole == 7) or (opponent == 1 and current_hole == 15)):
-                threat_score -= 4  # Reduced threat penalty
+                threat_score -= 3  # Further reduced threat penalty
             elif ((opponent == 0 and 0 <= current_hole <= 6) or 
                   (opponent == 1 and 8 <= current_hole <= 14)):
                 opposite = 14 - current_hole
                 if board_after[current_hole] == 1 and board_after[opposite] > 0:
-                    threat_score -= board_after[opposite] * 1.5  # Reduced threat penalty
+                    threat_score -= board_after[opposite] * 1.0  # Further reduced threat penalty
         
         return threat_score
 
     def evaluate_endgame_strategy(self, game, board_after, evaluating_player):
-        """Balanced endgame evaluation for any player"""
+        """More balanced endgame evaluation for any player"""
         if evaluating_player == 0:
             my_head = board_after[7]
             opponent_head = board_after[15]
@@ -142,24 +142,24 @@ class SungkaHeuristic:
         
         total_remaining = my_stones + opponent_stones
         
-        if total_remaining <= 20:  # Endgame threshold
+        if total_remaining <= 25:  # Slightly higher endgame threshold
             head_diff = my_head - opponent_head
             
-            # Balanced endgame strategy
-            if head_diff > 0:
+            # More balanced endgame strategy
+            if head_diff > 3:  # Only if significantly ahead
                 # Leading: try to safely clear
-                clear_bonus = max(0, (15 - my_stones)) * 2
-                return head_diff * 12 + clear_bonus
-            elif head_diff < 0:
+                clear_bonus = max(0, (15 - my_stones)) * 1.5  # Reduced from 2
+                return head_diff * 10 + clear_bonus  # Reduced from 12
+            elif head_diff < -3:  # Only if significantly behind
                 # Behind: try to gain stones
                 if my_stones > opponent_stones:
-                    comeback_bonus = (my_stones - opponent_stones) * 3
-                    return head_diff * 12 + comeback_bonus
+                    comeback_bonus = (my_stones - opponent_stones) * 2.5  # Reduced from 3
+                    return head_diff * 10 + comeback_bonus  # Reduced from 12
                 else:
-                    return head_diff * 15
+                    return head_diff * 12  # Reduced from 15
             else:
-                # Tied: maintain material advantage
-                return (my_stones - opponent_stones) * 5
+                # Close game: maintain material advantage
+                return (my_stones - opponent_stones) * 4  # Reduced from 5
         
         return 0
 
@@ -179,10 +179,10 @@ class SungkaHeuristic:
         total_stones_on_board = sum(board_after[i] for i in range(16) if i not in (7, 15))
         game_progress = 1 - (total_stones_on_board / 98)
         
-        # 1. Immediate tactical gains (always positive for good moves)
-        capture_score = result['total_captured'] * 10  # Reduced from 12
-        extra_turn_score = result['extra_turns'] * 15   # Reduced from 20
-        burn_penalty = result['burns_created'] * -20    # Reduced penalty from -30
+        # 1. Immediate tactical gains - Slightly more aggressive
+        capture_score = result['total_captured'] * 11  # Increased from 10
+        extra_turn_score = result['extra_turns'] * 16   # Increased from 15  
+        burn_penalty = result['burns_created'] * -18    # Reduced penalty from -20
         
         scores['Captures'] = capture_score
         scores['Extra Turns'] = extra_turn_score
@@ -205,62 +205,62 @@ class SungkaHeuristic:
         head_diff = my_head - opponent_head
         material_diff = my_stones - opponent_stones
         
-        # Balanced dynamic scoring based on game phase
+        # More aggressive dynamic scoring based on game phase
         if game_progress < 0.3:  # Early game
-            scores['Head Advantage'] = head_diff * 6  # Reduced from 8
-            scores['Material Control'] = material_diff * 2  # Reduced from 3
+            scores['Head Advantage'] = head_diff * 7  # Increased from 6
+            scores['Material Control'] = material_diff * 2.5  # Increased from 2
             
-            # Balanced development scoring
+            # More balanced development scoring
             active_holes = sum(1 for i in my_range if board_after[i] > 0)
             if active_holes >= 5:
-                scores['Development'] = 5  # Reduced from 8
+                scores['Development'] = 6  # Increased from 5
             elif active_holes <= 2:
-                scores['Development'] = -10  # Reduced penalty from -15
+                scores['Development'] = -8  # Reduced penalty from -10
             else:
                 scores['Development'] = 0
                 
         elif game_progress > 0.6:  # Late game
             endgame_score = self.evaluate_endgame_strategy(game, board_after, evaluating_player)
             scores['Endgame Strategy'] = endgame_score
-            scores['Material Control'] = material_diff * 0.8  # Reduced from 1
+            scores['Material Control'] = material_diff * 1.0  # Increased from 0.8
             
-        else:  # Mid game
-            scores['Head Advantage'] = head_diff * 8  # Reduced from 10
-            scores['Material Control'] = material_diff * 1.5  # Reduced from 2
+        else:  # Mid game - More aggressive
+            scores['Head Advantage'] = head_diff * 9  # Increased from 8
+            scores['Material Control'] = material_diff * 1.8  # Increased from 1.5
             
-            # Balanced mid-game tactical focus
+            # More aggressive mid-game tactical focus
             active_holes = sum(1 for i in my_range if board_after[i] > 0)
             if active_holes >= 3:
-                scores['Flexibility'] = 3  # Reduced from 5
+                scores['Flexibility'] = 4  # Increased from 3
             else:
-                scores['Flexibility'] = -5  # Reduced penalty from -8
+                scores['Flexibility'] = -4  # Reduced penalty from -5
         
-        # 3. Balanced threat analysis
+        # 3. Reduced threat analysis weight
         threat_score = self.analyze_opponent_threats(game, board_after, evaluating_player)
-        scores['Threat Analysis'] = threat_score
+        scores['Threat Analysis'] = threat_score * 0.8  # Reduce impact of threats
         
-        # 4. Balanced move efficiency
+        # 4. More aggressive move efficiency
         stones_used = game.board[hole]
         efficiency_score = 0
         
-        # Reward efficient captures and extra turns
+        # Reward efficient captures and extra turns more
         if result['total_captured'] > 0:
             efficiency = result['total_captured'] / max(1, stones_used)
-            efficiency_score += efficiency * 5  # Reduced from 8
+            efficiency_score += efficiency * 6  # Increased from 5
         
         if result['extra_turns'] > 0:
             if stones_used <= 6:
-                efficiency_score += 4  # Reduced from 6
+                efficiency_score += 5  # Increased from 4
             else:
-                efficiency_score += 1  # Reduced from 2
+                efficiency_score += 2  # Increased from 1
         
         # Reduced penalty for wasteful large moves
         if stones_used > 12 and result['total_captured'] == 0 and result['extra_turns'] == 0:
-            efficiency_score -= 4  # Reduced from -8
+            efficiency_score -= 3  # Reduced from -4
         
         scores['Move Efficiency'] = efficiency_score
         
-        # 5. Balanced tactical considerations
+        # 5. More aggressive tactical considerations
         tactical_score = 0
         
         # Count immediate capture opportunities after this move
@@ -281,24 +281,39 @@ class SungkaHeuristic:
                 if board_after[landing] == 0:
                     opposite = 14 - landing
                     if board_after[opposite] > 0:
-                        tactical_score += board_after[opposite] * 0.3  # Reduced from 0.5
+                        tactical_score += board_after[opposite] * 0.4  # Increased from 0.3
         
         scores['Tactical Setup'] = tactical_score
         
-        # 6. Smaller randomization to reduce deterministic play
+        # 6. Slightly increased randomization for variety
         if game_progress > 0.1:
-            randomization = random.uniform(-1, 1)  # Reduced from (-2, 2)
+            randomization = random.uniform(-1.5, 1.5)  # Increased from (-1, 1)
             scores['Variation'] = randomization
         else:
             scores['Variation'] = 0
         
-        # 7. Turn order balance compensation
-        # Add slight compensation for second player to balance first-move advantage
+        # 7. Enhanced turn order balance compensation
         turn_balance = 0
-        if game.metrics['moves'] < 4:  # Only in very early game
+        if game.metrics['moves'] < 6:  # Extended early game compensation
             if evaluating_player == 1:  # Second player
-                turn_balance = 1  # Small bonus for second player in early game
+                turn_balance = 1.5  # Increased bonus for second player
         scores['Turn Balance'] = turn_balance
+        
+        # 8. NEW: Positional bonus for maintaining board control
+        positional_score = 0
+        if game_progress < 0.7:  # Don't apply in endgame
+            # Bonus for having stones in multiple holes (flexibility)
+            non_empty_holes = sum(1 for i in my_range if board_after[i] > 0)
+            if non_empty_holes >= 4:
+                positional_score += 2
+            elif non_empty_holes <= 1:
+                positional_score -= 3
+            
+            # Bonus for having moderate stone counts (avoid concentration)
+            moderate_holes = sum(1 for i in my_range if 3 <= board_after[i] <= 8)
+            positional_score += moderate_holes * 0.5
+        
+        scores['Positional Control'] = positional_score
         
         # Total score calculation
         total_score = sum(scores.values())
